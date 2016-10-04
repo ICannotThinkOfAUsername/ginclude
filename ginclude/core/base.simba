@@ -1,0 +1,193 @@
+var
+  searchBox1: Tbox;
+  holdKeyTimer: TTimeMarker;
+const
+  MyFilter: TTesseractFilter = [2, 2, [False, 0, TM_MinMax]];
+
+////////////////////////////////////////////////////////////////////////////////
+procedure scriptTerminator(debugText: string);
+begin
+  writeln(debugText);
+  TerminateScript;
+end;
+
+////////////////////////////////////////////////////////////////////////////////
+procedure holdkey(reactionTime : integer = 200; keyToHold, timeToHoldKey: integer; boolFunc: function: boolean);
+begin
+  holdKeyTimer.start;
+  repeat
+    keydown(keyToHold);
+    wait(randomRange(30,120));
+    writeln(boolFunc);
+  until ((timeToHoldKey < holdKeyTimer.getTime) or (boolFunc));
+
+  repeat
+    keydown(keyToHold);
+    wait(randomRange(30,120));
+  until ((timeToHoldKey < holdKeyTimer.getTime) or (reactionTime < holdKeyTimer.getTime));
+
+  KeyUp(keyToHold);
+
+  if holdKeyTimer.getTime > timeToHoldKey then
+  begin
+    writeln('inventory didn''t empty within timeToHoldKey, is something wrong? terminating script');
+    TerminateScript;
+  end;
+end;
+
+procedure holdkey(keyToHold, timeToHoldKey: integer); overload;
+var
+  holdKeyTimer: TTimeMarker;
+begin
+  holdKeyTimer.start;
+  repeat
+    keydown(keyToHold);
+    wait(randomRange(30,120));
+  until ((timeToHoldKey < holdKeyTimer.getTime));
+
+  KeyUp(keyToHold);
+end;
+
+////////////////////////////////////////////////////////////////////////////////
+function dragToAB(fromSlot, toSlot: integer): boolean;
+var
+  p: TPoint;
+begin
+  if tabBackpack.isItemInSlot(fromSlot) then
+  begin
+    writeln('dragging items!');
+    tabBackpack.mouseSlot(fromSlot, MOUSE_MOVE);
+    gaussBox(p, actionbar.getSlotBox(toSlot));
+
+    dragMouse(p);
+    result := true;
+  end else
+    print('There is no item to drag in slot ' + intToStr(fromSlot), TDebug.ERROR);
+end;
+
+////////////////////////////////////////////////////////////////////////////////
+function getXP: integer;
+begin
+  result := StrToInt (ExtractFromStr(tesseractGetText(searchBox1, myFilter), numbers));
+end;
+
+////////////////////////////////////////////////////////////////////////////////
+function resetFolder(dir: string): boolean;
+begin
+  DeleteDirectory(dir, true);
+  CreateDirectory(dir);
+  if DirectoryExists(dir) then
+    result := true;
+end;
+
+////////////////////////////////////////////////////////////////////////////////
+procedure waitForCompass();
+var
+  dial: TPointArray;
+  someBounds: TBox;
+begin
+  someBounds.setBounds(582, 18, 614, 50);
+  FindColorsTolerance(dial, 9477483, someBounds, 25, ColorSetting(2, 2.20, 0.97));
+
+  failtimer.start;
+  repeat
+    wait(gaussrangeint(500, 750));
+    findColorsTolerance(dial, 9477483, someBounds, 25, ColorSetting(2, 2.20, 0.97));;
+  until ((length(dial) > 20) or (failtimer.getTime > 16600));
+  if failtimer.getTime > 16600 then
+    scriptTerminator('dial not found within 16.6 seconds, terminating');
+end;
+
+////////////////////////////////////////////////////////////////////////////////
+{
+All credit to waitTypeFunc
+}
+function boolBeforeTime(XreactionTime1: integer = 200; XreactionTime2: integer = 350; XmaxTime1: integer = 5400; XmaxTime2: integer = 6600; aBool: function: boolean): boolean;
+var
+  repeatTimer: TTimeMarker;
+  maxTime, reactionTime: integer;
+begin
+  repeatTimer.start;
+  maxTime := gaussRangeInt(XmaxTime1, XmaxTime2);
+  reactionTime := gaussRangeInt(XreactionTime1, XreactionTime2);
+
+  repeat
+    if aBool() = true then
+      exit(true);
+    Wait(reactionTime);
+  until (repeatTimer.getTime > maxTime);
+end;
+
+////////////////////////////////////////////////////////////////////////////////
+function boolBeforeTime2(XreactionTime1: integer = 200; XreactionTime2: integer = 350; XmaxTime1: integer = 5400; XmaxTime2: integer = 6600; aBool: function: boolean of object): boolean;
+var
+  repeatTimer: TTimeMarker;
+  maxTime, reactionTime: integer;
+begin
+  repeatTimer.start;
+  maxTime := gaussRangeInt(XmaxTime1, XmaxTime2);
+  reactionTime := gaussRangeInt(XreactionTime1, XreactionTime2);
+
+  repeat
+    if aBool() = true then
+      exit(true);
+    Wait(reactionTime);
+  until (repeatTimer.getTime > maxTime);
+end;
+
+////////////////////////////////////////////////////////////////////////////////
+function xpChanged(): boolean;
+begin
+  result := (prevXP <> getXP);
+end;
+
+////////////////////////////////////////////////////////////////////////////////
+function redAroundMouse(): boolean;
+var
+  redTPA: TPointArray;
+  aBox: Tbox;
+begin
+  GetMousePos(x, y);
+  aBox.setBounds(x - 15, y - 15, x + 15, y + 15);
+
+  if not findColorsTolerance(redTPA, 395676, aBox, 0, colorSetting(2, 0, 0)) then
+    exit(false) else
+    exit(true);
+end;
+
+////////////////////////////////////////////////////////////////////////////////
+procedure makeMinimapBig();
+begin
+  mouse(point(718 + random(30), 5 + random(5)), mouse_move);
+  if randomrange(1, 100) < 90 then
+    wait(gaussRangeInt(200, 350));
+  dragMouse(point(66 + random(65), 6 + random(10)));
+  mouse(point(213 + random(7), 189 + random(6)), mouse_move);
+  if randomrange(1, 100) < 90 then
+    wait(gaussRangeInt(200, 350));
+  dragMouse(point(560 + random(35), 370 + random(30)));
+  wait(gaussrangeint(300, 450));
+end;
+
+////////////////////////////////////////////////////////////////////////////////
+procedure makeMinimapSmall();
+begin
+  mouse(point(128 + random(314), 4 + random(7)), mouse_move);
+  if randomrange(1, 100) < 90 then
+    wait(gaussRangeInt(200, 350));
+  dragMouse(point(717 + random(76), 4 + random(8)));
+  wait(gaussRangeInt(250, 400));
+  mouse(point(226 + random(9), 180 + random(19)), mouse_move);
+  if randomrange(1, 100) < 90 then
+    wait(gaussRangeInt(400, 950));
+  dragMouse(point(585 + random(12), 188 + random(18)));
+  wait(gaussRangeInt(250, 400));
+end;
+
+////////////////////////////////////////////////////////////////////////////////
+
+
+////////////////////////////////////////////////////////////////////////////////
+
+
+////////////////////////////////////////////////////////////////////////////////

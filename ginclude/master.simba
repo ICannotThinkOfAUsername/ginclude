@@ -1,0 +1,4 @@
+{$DEFINE ginclude}
+
+{$include_once core/master.simba}
+{$include_once script_bases/master.simba}

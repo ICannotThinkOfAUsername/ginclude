@@ -1,0 +1,717 @@
+program scriptTemplate;
+
+{$DEFINE SMART}              // Always have this to load smart
+{$I SRL-6/SRL.simba}         // To load the SRL include files
+{$I SPS/lib/SPS-RS3.Simba}   // To load the SPS include files
+{$I ginclude/master.simba}
+
+
+const
+  language = 'english';
+
+var
+  failtimer, failtimer2, waitTimer, energyTimer, mainloopTimer: TTimeMarker;
+  i, prevXP:  integer;
+  cursedWispRift, cursedWispLocation, gotovarrockwest,
+  lodeToWisp1, lodeToWisp2: TSPSArea;
+  cursedWispTPA, riftTPA: TPointArray;
+  riftBox, boundsBox, playerBox, wildyLevelBox: TBox;
+  cursedWispATPA, riftATPA: T2DPointArray;
+  riftOption, riftText, wispText:  TStringArray;
+  p: TPoint;
+  weTeleported: boolean;
+
+procedure declarePlayers();
+begin
+  setLength(players, 1);
+  with players[0] do
+  begin
+    loginName := 'superm4n57@outlook.com';
+    password := 'nc8xaso2asd';
+    isActive := true;
+    isMember := true;
+    world := 117;
+  end
+  currentPlayer := 0;
+end;
+
+function TSPSArea.walkPath1(path: TPointArray; waitMoving: Boolean = False; shiftInterval: Integer = 500): boolean;
+var
+  p, lastPos, mmPoint: TPoint;
+  t, fails, h, l, i: integer;
+begin
+  result := false;;
+
+  h := high(path);
+  l := low(path);
+
+  t := (getSystemTime() + randomRange(15000, 20000));
+
+  repeat
+    if (not isLoggedIn()) then
+      exit(false);
+
+    p := self.getPlayerPos();
+
+    for i := h downto l do
+      if (SPS_PosToMM(path[i], p, mmPoint)) then
+      begin
+        if (distance(minimap.getCenterPoint(), mmPoint) >= 10) then
+        begin
+          if (spsMultiMouse) then
+            multiClick(mmPoint, 25, 3)
+          else
+            mouse(mmPoint, MOUSE_LEFT);
+
+          if (minimap.isFlagPresent(2500 + random(500))) then
+            minimap.waitFlag(10 + random(25));
+        end;
+
+        t := (getSystemTime() + randomRange(15000, 20000));
+
+        result := (i = h) or (distance(path[i], path[h]) < 10);
+
+        if (result) then
+          break(2)
+        else
+          break();
+
+      end;
+
+    if (p.x = lastPos.x) and (p.y = lastPos.y) then
+      inc(fails);
+
+    lastPos := p;
+
+  until (getSystemTime() > t) or (fails > 5);
+
+  if waitMoving then
+    if (minimap.isFlagPresent() or minimap.isPlayerMoving()) then
+      minimap.waitPlayerMoving(shiftInterval);
+
+  print(self.getName()+'.walkPath(): result = '+boolToStr(result));
+end;
+
+function TSPSArea.blindWalk(pos: TPoint): boolean; override;
+var
+  tries: integer;
+  ctrlPoints: TPointArray;
+  p: TPoint;
+begin
+  result := false;
+
+  repeat
+    if (not isLoggedIn()) then
+      exit();
+
+    p := self.getPlayerPos();
+
+    inc(tries);
+
+    if ((tries) > 10) then
+      break();
+  until (not p.equals([-1, -1]));
+
+  if (tries <= 10) then
+  begin
+    ctrlPoints := TPABetweenPoints(p, pos, 15 + random(25), 15);
+    result := self.walkPath1(ctrlPoints);
+  end;
+
+  print(self.getName()+'.blindWalk(): result = '+boolToStr(result));
+end;
+
+procedure terminator();
+begin
+  writeLn('We are terminating');
+  //make sound
+  //take screenshot
+  //
+end;
+
+procedure loginProcedure();
+begin
+  if not isLoggedIn() then
+  begin             // If player isn't logged in then
+    players[currentPlayer].login();    // Log them in
+    wait(randomRange(1500,3000));
+  end;
+
+  if ((minimap.getAngleDegrees > 5) and (minimap.getAngleDegrees < 355)) then
+    begin
+      writeLn('Setting Compass');
+      minimap.clickCompass;
+      mainScreen.setAngle(MS_ANGLE_HIGH);
+      wait(randomrange(650, 1250));
+    end;
+  exitTreasure;
+  claimTicket;
+  closePopup;
+end;
+
+procedure setupLanguage();
+begin
+  Case language Of
+    //english
+    'english':
+    begin
+      riftOption    := ['to ene'];
+      wispText      := ['arves', 'ronic'];   //instead of 'wisp'
+      riftText      := ['Conv'];
+    end;
+    //german
+    'german':
+    begin
+      riftOption    := ['In En'];
+      wispText      := ['Verf'];
+      riftText      := ['Erinn'];
+    end;
+    //portugal
+    'portugal':
+    begin
+      riftOption    := ['ia Fi'];
+      wispText      := ['Fogo'];
+      riftText      := ['Fiss'];
+    end;
+    //french
+    'french':
+    begin
+      riftOption    := ['ie Fa'];
+      wispText      := ['Sph'];
+      riftText      := ['Conv'];
+    end;
+  end;
+  writeln('Selected language: ', language, ' ******Uptext As Follows*******',riftOption, wispText, riftText);
+end;
+
+procedure setupVariables();
+begin
+  cursedWispRift.setup('cursedWispRift', RUNESCAPE_SURFACE);
+
+  lodeToWisp1.setup('lodeToWisp1', RUNESCAPE_SURFACE);
+  lodeToWisp2.setup('lodeToWisp2', RUNESCAPE_SURFACE);
+
+  gotovarrockwest.setup('gotovarrockwest', RUNESCAPE_SURFACE);
+
+  //cursedWispLocation.setup('cursedWispLocation', RUNESCAPE_SURFACE);
+  setupLanguage();
+  searchBox1.setBounds(35, 532, 93, 547);
+  playerBox.setBounds(266, 169, 307, 215);
+  wildyLevelBox.setBounds(505, 26, 573, 45);
+
+end;
+
+procedure setup();
+begin
+  clearDebug();               // Clear the debug box
+  smartEnableDrawing := true; // So we can draw on SMART
+  declarePlayers();             // Set up your username/pass
+  smartShowConsole := false;        //
+  disableIPScreenshots := true;
+  disableSRLLog := true;
+  addOnTerminate('terminator');
+  setupSRL();                   // Load the SRL include files
+  loginProcedure();
+  setupVariables();
+end;
+
+function shouldWeTele(): boolean;
+begin
+  writeLn('Checking hp: ', actionBar.getHpPercent());
+  if (actionBar.getHPPercent() < 99) then
+    result := true;
+end;
+
+//************************************************
+//return true if bank icon found. means teled away
+//***********************************************
+function teleAway(): boolean;
+var
+  p: TPoint;
+begin
+  typeSend('2', false);      //freedom ability
+  if RandomRange(1, 100) < 40 then
+    wait(gaussRangeInt(150, 325));
+
+  typeSend('1', false);         //NO ring of wealth spam tele
+
+  failTimer.start;
+  repeat
+    wait(gaussRangeInt(100, 150));
+
+    if ((minimap.findSymbol(p, MM_SYMBOL_SPOT_REST, minimap.getBounds)) and (failtimer.getTime > gaussRangeInt(3050, 4850))) then
+    begin
+      writeln('bank found. teleported away');
+      break;
+    end;
+
+  until (failTimer.getTime > 15000);
+  if (failTimer.getTime > 15000) then
+    scriptTerminator('took longer than 15000 to find rest spot');
+
+  weTeleported := true;
+end;
+
+procedure teleCheck();
+begin                //still thinking on what to do with the teleaway boolean. (what to set true to do w/e)
+  if (shouldWeTele()) then
+    teleAway();
+end;
+
+//**********************************************************
+// - finds wisp colours and puts it into tpa
+// - converts the tpa into atpa and filters points to closest aswell as ones too small
+//**********************************************************
+function findWisp(): boolean;
+begin
+  if (not findColorsTolerance(cursedWispTPA1, 6460618, mainScreen.getBounds, 15, ColorSetting(2, 0.26, 2.41)) and (not findColorsTolerance(cursedWispTPA2, )) then
+  begin
+    writeln('Could not find wisps, returning false and exiting');
+    exit(false);
+  end;
+
+  if length(cursedWispTPA) > 1 then               //checks if tpa exists that is > 1
+  begin
+    writeln('Found Wisps');
+    cursedWispATPA := cursedWispTPA.toATPA(15, 15);      //converts the wisps in TPA to ATPA
+    cursedWispATPA.filterBetween(0, 10);           //filter points too small to be wisps
+    if length(cursedWispATPA) < 1 then
+      exit(false);
+
+    for i := high(cursedWispATPA) downto 0 do
+    begin
+      if playerBox.overlap(cursedWispATPA[i].getBounds) then
+        cursedWispATPA.deleteIndex(i);
+      if wildyLevelBox.overlap(cursedWispATPA[i].getBounds) then
+        cursedWispATPA.deleteIndex(i);
+    end;
+
+    smartImage.debugATPA(cursedWispATPA);
+
+    if length(cursedWispATPA) > 0 then         //checks if ATPA is presen
+      cursedWispATPA.sortFromMidPoint(mainscreen.playerPoint) else         //sorts to closest to player
+      exit(false);
+  end;
+
+  if not minimap.isFlagPresent then
+    boundsBox.setBounds(cursedWispATPA[0].getBounds.x1 - 10, cursedWispATPA[0].getBounds.y1 - 10, cursedWispATPA[0].getBounds.x2 + 10, cursedWispATPA[0].getBounds.y2 + 10);
+
+  exit(true);
+end;
+
+function findWispsParam(): boolean;
+begin
+  writeln('boundsBox is: ', boundsBox);
+  smartImage.drawBox(boundsBox, true, clred);
+  //smartImage.debugATPA(cursedWispATPA);
+  //scriptTerminator('drew boundsBox boss');
+
+  if findColorsTolerance(cursedWispTPA, 5736869, boundsBox, 31, colorSetting(2, 0.27, 0.83)) then
+    exit(true);
+end;
+
+//**********************************************************
+// - waits for random amount of time within parameter range
+//      @parameter "minWait"
+//                 > minimum time to wait
+//      @parameter "maxWait"
+//                 > maximum time to wait
+//**********************************************************
+procedure siphonWait(minWait, maxWait: integer);
+begin
+  mouseOffClient(OFF_CLIENT_RIGHT);
+
+  waitTimer.start;
+  repeat
+    teleCheck();
+    if weTeleported then
+      break;
+    wait(gaussRangeInt(200, 400));
+  until (waitTimer.getTime > minWait);
+
+  minimap.waitFlag;
+  findWisp;
+  repeat
+    teleCheck();
+    if weTeleported then
+      break;
+    if tabBackpack.isFull then
+      break;
+    wait(gaussRangeInt(200, 400));
+  until ((not findWispsParam) or (waitTimer.getTime > maxWait));
+
+  if waitTimer.getTime > maxWait then
+    scriptTerminator('siphonWait took longer than maxWait');
+end;
+
+procedure depositWait();
+begin
+  mouseOffClient(OFF_CLIENT_RIGHT);
+  minimap.waitFlag;
+
+  failtimer.start;
+  repeat
+    prevXP := getXP;
+    waitTimer.start;
+    repeat
+      teleCheck();
+      if weTeleported then
+        break;
+      wait(gaussRangeInt(200, 400));
+    until ((prevXP <> getXP) or (waitTimer.getTime > gaussRangeInt(2450, 3650)));
+  until ((prevXP = getXP) or (failtimer.getTime > 100000));
+  if (failtimer.getTime > 100000) then
+    scriptTerminator('took longer than 100k ms for depositWait to work properly wtf??');
+end;
+
+//**********************************************************
+// - checks if rift on mainscreen, if is return true else return false
+//**********************************************************
+function isRiftOnMS(): boolean;
+begin
+  if not findColorsTolerance(riftTPA, 7920825, mainScreen.getBounds, 14, ColorSetting(2, 0.37, 1.22)) then
+  begin
+    writeln('rift not found on mainscreen');
+    exit(false);
+  end else
+  begin
+    if length(riftTPA) < 5000 then     //if tpa of rift isn't big enough then return false
+    begin
+      writeln('rift found, but area too small');
+      exit(false);
+    end;
+    writeln('found the rift on mainscreen');
+    exit(true);
+  end;
+end;
+
+procedure walkToRift();
+var
+  riftTimer: TTimeMarker;
+  p: TPoint;
+begin
+  riftTimer.start;
+
+  if isRiftOnMS then
+    exit;
+
+  if (minimap.findSymbol(p, MM_SYMBOL_DIVINATION, minimap.getBounds)) then
+  BEGIN
+    smartImage.drawCircle(p, 3, true, clwhite);
+    p.X := p.X + gaussRangeInt(20, 30);
+    p.Y := p.Y + gaussRangeInt(1, 16);
+    writeln(p);
+    moveMouse(p);
+    fastClick(mouse_Left);
+    smartImage.drawCircle(p, 3, true, clblue);
+  end else
+    repeat
+      cursedWispRift.blindWalk([gaussRangeInt(127, 133), gaussRangeInt(181, 187)]);           //tries to walk to rift for 20 seconds
+    until ((isRiftOnMS) or (riftTimer.getTime > 20000));       // if not found rift terminate
+  if riftTimer.getTime > 20000 then
+    scriptTerminator('riftTimer is greater than 20000');
+
+  minimap.waitFlag;
+end;
+
+//*************************************************************
+//      add in a check to see if successfully clicked the wisp
+//*************************************************************
+function clickWisp(): boolean;
+begin
+  prevXP := getXP;
+
+  failtimer.start;
+  for i := 0 to high(cursedWispATPA) do
+  begin
+    if failtimer.getTime > gaussRangeInt(1150, 2450) then
+    begin
+      writeln('took longer than ~2 seconds to find uptext? :(');
+      exit(false);
+    end;
+
+    moveMouse(MiddleTPA(cursedWispATPA[i]));
+    if not isMouseOverText(wispText, 600) then
+      continue; //if uptext is not found, it starts over again at the top of the loop
+
+    //uptext was found so we're not using continue
+    fastClick(mouse_Left);
+    result := true;
+    break; //exiting the loop
+  end;
+
+  if result = false then
+    exit;
+
+  minimap.waitPlayerMoving;
+
+  failtimer.start;
+  repeat
+    wait(gaussRangeInt(150, 400));
+  until ((failtimer.getTime > 10000) or (prevXP <> getXP));
+  if (failtimer.getTime > 10000) then
+    exit(false);
+end;
+
+function clickRift(debug: boolean): boolean;
+begin
+  //walkToRift;
+
+  if (not isRiftOnMS) then
+    exit(false);
+
+  riftATPA := riftTPA.toATPA(15);
+  riftATPA.sortFromMidPoint(mainScreen.getCenterPoint);
+
+  if debug then
+  begin
+    smartImage.clear;
+    smartImage.debugATPA(riftATPA);
+  end;
+
+  for i := 0 to high(riftATPA) do
+  begin
+    moveMouse(MiddleTPA(riftATPA[i]));
+    if isMouseOverText(riftText) then
+      break;
+    if (i < high(riftATPA)) then
+      continue;
+    scriptTerminator('failed to click rift? maybe change this w/ an exit(false)');
+  end;
+
+  fastClick(mouse_Right);
+
+  if not chooseOption.select(riftOption) then
+    exit(false);
+
+  result := true;
+end;
+
+procedure teleToLodestone();
+var
+  options: TOptionArray;
+  result, prevDest: boolean;
+  filter: TTesseractFilter;
+begin
+  writeln('teleporting to wildy lodestone');
+  failTimer.start;
+
+  mouseCircle(minimap.button[MM_BUTTON_LODESTONE].center.x, minimap.button[MM_BUTTON_LODESTONE].center.y,
+              minimap.button[MM_BUTTON_LODESTONE].radius, MOUSE_MOVE);
+  fastClick(mouse_Right);
+
+  options := chooseOption.getOptions;
+  result := length(Options) = 3;
+  if not (result) then
+    scriptTerminator('length of Options was not = to 3');
+
+  //future moo problem asdf
+
+  if (not chooseOption.__select(['ilder', 'olcan'], mouse_left, false, 1.00, 1250, false, filter)) then
+  //if (not chooseOption.select(['ilder', 'olcan'], gaussRangeInt(1250, 2450))) then
+  begin
+    chooseOption.select(['elepo'], gaussRangeInt(1250, 2450));
+
+    failtimer2.start;
+    repeat
+      wait(gaussRangeInt(200, 400));
+    until ((lodestoneScreen.isOpen) or (failtimer2.getTime > 10000));
+    if failtimer2.gettime > 10000 then
+      scriptTerminator('took longer than 10000 for lodestoneScreen to open up?');
+
+    lodestoneScreen.teleportTo(LOCATION_WILDERNESS);
+  end;
+
+  repeat
+    wait(gaussRangeInt(300,900));
+  until ((conversationBox.isOpen) or (failTimer.getTime > 45000));
+
+  if failTimer.getTime > 45000 then
+    scriptTerminator('could not get past tele chat warning dialog');
+
+  if conversationBox.isOpen then
+    conversationBox.continue(true, true);
+  if (conversationBox.selectOption(1)) then
+    wait(gaussRangeInt(18000, 27000));
+
+  mouseOffClient(OFF_CLIENT_RIGHT);
+  wait(gaussrangeint(16500, 20000));
+end;
+
+procedure lodeStoneToWisps();
+begin
+  writeln('walking to wisps from the lodestone');
+  lodeToWisp1.walkPath1([Point(198, 208), Point(252, 180), Point(289, 128), Point(260, 70)]);
+  lodeToWisp2.walkPath1([Point(173, 218), Point(143, 164), Point(114, 103)]);
+end;
+
+procedure walkToVarrockWestBankfromGrandExchangeEntrance();
+begin
+  writeln('initiating blind walk to V West');
+  gotovarrockwest.blindWalk([194, 163]);
+end;
+
+procedure usePreset1();
+begin
+  writeln('using preset1');
+  failtimer.start;
+  repeat
+    wait(gaussRangeInt(150, 350));
+  until ((bankScreen.isOpen) or (failtimer.getTime > 15000));
+  if failtimer.getTime > 15000 then
+    scriptTerminator('took longer than 15000 for bank screen to open');
+
+  wait(gaussRangeInt(150, 350));
+  typesend('1', false);
+
+  repeat
+    wait(gaussRangeInt(150, 350));
+  until ((not bankScreen.isOpen) or (failtimer.getTime > 15000));
+  if failtimer.getTime > 15000 then
+    scriptTerminator('took longer than 15000 for bank screen to go away');
+
+  wait(gaussRangeInt(150, 350));
+end;
+
+procedure openBank();
+begin
+  writeln('opening up the bank');
+  if not getVarrockWestBankOnMS( , , true) then
+    if not getVarrockWestBankOnMS( , , , true) then
+      scriptTerminator('failed to open up varrock west bank twice');
+end;
+
+function shouldNotHealUpBoolFunc(): boolean;
+begin
+  result := (actionBar.getHPPercent > 99);
+end;
+
+procedure healUp();
+begin
+  writeln('healing up');
+  if not shouldNotHealUpBoolFunc then
+    holdkey( , 51, 15000, @shouldNotHealUpBoolFunc);
+end;
+
+procedure bankingTime(weShouldTeleport: boolean);
+begin
+  writeln('bankingTime! weShouldTeleport is set to: ', weShouldTeleport);
+
+  if weShouldTeleport then
+    teleAway;
+
+  walkToVarrockWestBankfromGrandExchangeEntrance;
+  openBank;
+  usePreset1;
+
+  teleToLodestone();
+  lodeStoneToWisps; //not reliable
+  healUp; //perhaps should eat all instead
+end;
+
+procedure getDemMemories();
+begin
+  if tabBackpack.isFull then
+    exit;
+  writeln('backpack was not full, let''s get dem memories');
+
+  repeat
+    smartImage.clear;
+
+    if weTeleported then
+      break;
+
+    if not findWisp then
+    begin
+      lodeToWisp2.blindWalk([105, 113]);
+      continue;
+    end else
+      if not clickWisp then
+        continue;
+
+    siphonWait(2000, 100000);
+  until tabBackpack.isFull;
+end;
+
+procedure depositDemMemories();
+begin
+  writeln('let''s deposit dem memories');
+  smartImage.clear;
+
+  if weTeleported then
+    exit;
+
+  walkToRift;
+
+  if not clickRift(false) then
+    if not clickRift(false) then
+      scriptTerminator('failed to click rift twice');
+
+  depositWait;
+
+  if not findWisp then
+    lodeToWisp2.walkPath1([point(105, 113)]);
+end;
+
+procedure collectEnergies(maxMinutes: integer);
+begin
+  energyTimer.start;
+  repeat
+    writeln('let''s get dem energies');
+
+    if weTeleported then
+      break;
+
+    getDemMemories; //work in progress
+
+    if weTeleported then
+      break;
+
+    depositDemMemories; //work in progress
+
+    //scriptTerminator('just 1 loop plz');
+  until ((energyTimer.getTime/60000) > maxMinutes);
+end;
+
+procedure cursedEnergiesScript(minsToRunFor: integer; leaveAfter: boolean);
+begin
+  mainloopTimer.start;
+  setup();
+
+  if not minimap.findSymbol(p, MM_SYMBOL_DIVINATION, minimap.getBounds) then
+    bankingTime(true);
+
+  repeat
+    weTeleported := false;
+    writeln('lets start getting energies');
+    collectEnergies(gaussRangeInt(60, 300));
+    bankingTime(false);
+  until ((mainloopTimer.getTime/60000) > minsToRunFor);
+
+  writeln('cursedEnergiesScript = done. leaveAfter is set to: ', leaveAfter);
+  if leaveAfter then
+    teleAway;
+end;
+
+procedure test();
+begin
+  //test1.blindWalk([305, 132]);
+  //test2.blindWalk([108, 104]);
+
+  {, point()
+  test1.blindWalk([297, 197]);
+  test1.blindWalk([295, 120]);
+  }
+
+  {
+  test1.walkPath1([Point(198, 208), Point(252, 180), Point(289, 128), Point(260, 70)]);
+  test2.walkPath1([Point(173, 218), Point(143, 164), Point(114, 103)]);
+  }
+end;
+
+// main loop
+begin
+  cursedEnergiesScript(randomrange(110, 130), false);
+  //setup;
+  //writeln(clickRift(true));
+end.
