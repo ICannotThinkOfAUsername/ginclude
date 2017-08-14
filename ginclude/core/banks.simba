@@ -1,3 +1,13 @@
+function closeDTMisOnScreen(): boolean;
+begin
+  result := findDTM(closeDTM, x, y, mainscreen.getBounds);
+end;
+
+function closeDTMisNotOnScreen(): boolean;
+begin
+  result := not findDTM(closeDTM, x, y, mainscreen.getBounds);
+end;
+
 {
 gets bankerATPA, looks for boothTPA in a rectangle around that
 }
@@ -14,14 +24,22 @@ const
   boothSat = 1.1;
 var
   failTimer: TTimeMarker;
-  i: integer;
+  i, maxTime: integer;
   bankerTPA, boothTPA: TPointArray;
   bankerATPA: T2DPointArray;
   boothBox: Tbox;
 begin
   //some failsafe procedure that checks if we're logged in and does stuff if we are not
+  mouseOffClient(OFF_CLIENT_RIGHT);
+
   if waitPlayerMoving then
      minimap.waitPlayerMoving;
+
+  if FindDTM(closeDTM, x, y, mainscreen.getBounds) then
+  begin
+    writeln('found dtm, exitting true');
+    exit(true);
+  end;
 
   if not findColorsTolerance(bankerTPA, bankerColor, mainscreen.getBounds, bankerTol, colorSetting(2, bankerHue, bankerSat)) then
   begin
@@ -50,28 +68,42 @@ begin
 
      //smartImage.debugTPA(boothTPA);
      MoveMouse(middleTPA(boothTPA));
-     //mouse(middleTPA(boothTPA), MOUSE_MOVE);
 
-     if not isMouseOverText(['Bank'], gaussRangeInt(1250, 2450)) then
+     {
+     if not isMouseOverText(['Bank'], gaussRangeInt(650, 1250)) then
        continue;
-
-     result := true;
+     }
 
      if not rightClick then
      begin
        fastClick(mouse_Left);
+       if not boolBeforeTime(,,,, @redAroundMouse) then
+        continue
+       else
+        result := true;
+        break;
+     end else
+     begin
+       fastClick(mouse_right);
+       if not chooseOption.select(['ank', 'ooth'], 3050) then
+        continue;
+
+       result := true;
        break;
      end;
 
-     fastClick(mouse_Right);
-     chooseOption.select(['ank'], 1250);
+     writeln('we should''ve breaked / continued...? why are we here');
      break;
   end;
 
+  maxTime := gaussrangeint(12500, 15000);
   failTimer.start;
   repeat
     wait(gaussrangeint(150, 350));
-  until ((bankScreen.isOpen) or (failTimer.getTime > 5000));
-  if failTimer.getTime > 5000 then
+  until ((FindDTM(closeDTM, x, y, mainscreen.getBounds)) or (failTimer.getTime > maxTime));
+  if failTimer.getTime > maxTime then
+  begin
+    writeln('took longer than max time of ', maxTime, ' for bank to open?? exitting false');
     exit(false);
+  end;
 end;

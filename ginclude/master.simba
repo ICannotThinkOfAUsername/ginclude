@@ -1,3 +1,4 @@
+//{$loadlib Prosocks}
 {$DEFINE ginclude}
 
 {$include_once core/master.simba}

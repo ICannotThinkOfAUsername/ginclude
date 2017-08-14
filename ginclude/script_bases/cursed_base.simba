@@ -1,85 +1,27 @@
-function shouldWeTele(): boolean;
-begin
-  writeLn('Checking hp: ', actionBar.getHpPercent());
-  if (actionBar.getHPPercent() < 99) then
-    result := true;
-end;
-
-//************************************************
-//return true if bank icon found. means teled away
-//***********************************************
-function teleAway(): boolean;
-var
-  failTimer: TTimeMarker;
-  p: TPoint;
-begin
-  if weTeleported then
-    exit;
-  if ((actionBar.getHPPercent < 100) and (actionBar.getAbilityCooldown(2) = 100)) then
-    typeSend('2', false);      //freedom ability
-  if RandomRange(1, 100) < 40 then
-    wait(gaussRangeInt(150, 325));
-
-  moveMouse(actionBar.getSlotBox(10).getmiddle);
-  fastClick(mouse_Left);
-  //typeSend('0', false);         //NO ring of wealth spam tele
-  saveScreenshot('C:\Simba\teleportPics\'+ timeRunning() + '.png');
-
-  failTimer.start;
-  repeat
-    wait(gaussRangeInt(100, 150));
-
-    if ((minimap.findSymbol(p, MM_SYMBOL_TRANSPORTATION, minimap.getBounds)) and (failtimer.getTime > gaussRangeInt(3050, 4850))) then
-    begin
-      writeln('bank found. teleported away');
-      break;
-    end;
-
-  until (failTimer.getTime > 15000);
-  if (failTimer.getTime > 15000) then
-    scriptTerminator('took longer than 15000 to find rest spot');
-
-  weTeleported := true;
-  weShouldTeleport := false;
-end;
-
-procedure teleCheck();
-begin                //still thinking on what to do with the teleaway boolean. (what to set true to do w/e)
-  writeln('we''ve ran for: ', mainloopTimer.getTime/60000, ' minutes');
-  writeln('we''ve breaked for: ', totalBreakTime/60000, ' minutes');
-  if (shouldWeTele()) then
-    teleAway();
-end;
-
-function boolBeforeTimeWildy(XreactionTime1: integer = 200; XreactionTime2: integer = 350; XmaxTime1: integer = 5400; XmaxTime2: integer = 6600; aBool: function: boolean): boolean;
-var
-  repeatTimer: TTimeMarker;
-  maxTime, reactionTime: integer;
-begin
-  repeatTimer.start;
-  maxTime := gaussRangeInt(XmaxTime1, XmaxTime2);
-  reactionTime := gaussRangeInt(XreactionTime1, XreactionTime2);
-
-  repeat
-    if aBool() = true then
-      exit(true);
-    teleCheck;
-    if weTeleported then
-      exit(false);
-    Wait(reactionTime);
-  until (repeatTimer.getTime > maxTime);
-end;
-
 procedure failsafeWalk();
 begin
   writeln('making minimap big and walking to div symbol');
   makeMinimapBig;
   if not minimap.findSymbol(p, MM_SYMBOL_DIVINATION, mainscreen.getBounds) then
+  begin
+    makeMinimapSmall;
     scriptTerminator('failed to find div symbol after making minimap big? terminating');
+  end;
+
   writeln(p);
   mouse(Point(p.x + gaussrangeint(30, 45), p.y + random(-5, 5)) , mouse_left);
   wait(gaussRangeInt(200, 450));
   makeMinimapSmall;
   writeln('waiting for player to stop walking, after making minimap small');
   minimap.waitPlayerMoving;
+end;
+
+function weAreDeadEdge(): boolean;
+begin
+  writeln('checking if we''re dead @ Edge');
+  result := minimap.findSymbol(p, MM_SYMBOL_FURNACE, minimap.getBounds);
+  writeln('p is: ', p);
+  if result then
+    {$IfDef SMART}smartImage.drawCircle(p, 3, true, clwhite);{$EndIf}
+  writeln('result of weAreDeadEdge is: ', result);
 end;
